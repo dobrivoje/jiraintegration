@@ -10,20 +10,18 @@ import org.codehaus.jettison.json.JSONObject;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.List;
-import java.util.Scanner;
+import java.util.*;
 
 public class JSONUtils {
 
-    private static final String DEFAULT_DATETIME_FORMAT = "dd.MM.yyyy hh:mm:ss";
+    public static final String DEFAULT_UK_DATETIME_FORMAT = "yyyy-MM-dd HH:mm:ss";
 
     //<editor-fold desc="supporting methods">
     public static String getDateTimeFormat(String... dateTimeFormat) {
         String pattern;
 
         if (dateTimeFormat == null || dateTimeFormat.length == 0)
-            pattern = DEFAULT_DATETIME_FORMAT;
+            pattern = DEFAULT_UK_DATETIME_FORMAT;
         else if (dateTimeFormat.length != 1)
             throw new RuntimeException("Method allows empty, or just one argument.");
         else
@@ -35,6 +33,11 @@ public class JSONUtils {
         return pattern;
     }
 
+    /**
+     * Gson with or without defined time format.
+     *
+     * @param dateTimeFormat Optional. If not provided, set it up with {@link JSONUtils#DEFAULT_UK_DATETIME_FORMAT} value.
+     */
     public static Gson getGsonWithTimeFormat(String... dateTimeFormat) {
         GsonBuilder gb = new GsonBuilder().serializeNulls().disableHtmlEscaping().setPrettyPrinting();
 
@@ -81,7 +84,10 @@ public class JSONUtils {
     /**
      * Parse JSON response to appropriate lsit of Dto's representation of a type {@link List<T>}
      *
-     * @param response {@link List<T>}
+     * @param {@link          T} Return (dto) type
+     * @param returnTypeClass T class
+     * @param dateTimeFormat  optional date format
+     * @param response        {@link List<T>}
      */
     public static <T> List<T> parseResponseAsList(HttpResponse response, Class<T> returnTypeClass, String... dateTimeFormat) {
         String errormsg = "Jira List Parse Response Error";

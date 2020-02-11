@@ -27,8 +27,11 @@ public class JiraClient {
     @Value("${jira_home}")
     String JIRA_HOME_URL;
 
-    @Value("${jira_base_url}")
-    String JIRA_ENDPOINT_URL;
+    @Value("${jira_api_v2:/rest/api/2/}")
+    String JIRA_API_V2_URL;
+
+    @Value("${jira_api_v3:/rest/api/3/}")
+    String JIRA_API_V3_URL;
 
     @Value("${jira_access_token}")
     String JIRA_ACCESS_TOKEN;
@@ -45,8 +48,6 @@ public class JiraClient {
     @Value("${datetimeformat}")
     private String dateTimeFormat;
 
-    JSONUtils jsonUtils;
-
     JiraOAuthClient jiraOAuthClient;
     //</editor-fold>
 
@@ -62,7 +63,6 @@ public class JiraClient {
                 throw new RuntimeException(errMsg + e);
             }
         }
-
     }
     //</editor-fold>
 
@@ -103,10 +103,10 @@ public class JiraClient {
     /**
      * This is preferred and convenient way to use a GET call, for results of type {@link HttpResponse}<br>
      *
-     * @param apiMethodCallUrl Only Jira API call with belonging parameters should be created.<br>
+     * @param apiCallWithParams Only Jira API call with belonging parameters should be created.<br>
      */
-    private HttpResponse executeGetAndReturnHttpResponse(@NonNull String apiMethodCallUrl) {
-        return handleGetRequest(JIRA_ENDPOINT_URL + apiMethodCallUrl);
+    private HttpResponse executeGetBasicAndReturnHttpResponse(@NonNull String apiCallWithParams, @NonNull String apiApiVersion) {
+        return handleGetRequest(JIRA_HOME_URL.concat(apiApiVersion).concat(apiCallWithParams));
     }
     //</editor-fold>
 
@@ -125,13 +125,23 @@ public class JiraClient {
      *                         For proper usage, MessageFormat.format( apiCall_Name, apiCall_Parameters) may be used.<br>
      */
     public <T> T executeGet(Class<T> clazz, String apiMethodCallUrl) {
+        return executeGetBasic(clazz, JIRA_API_V2_URL, apiMethodCallUrl);
+    }
+
+    /**
+     * @param clazz             Class representation of T type<br>
+     * @param apiVersion        As of writing, /rest/api/2/, and /rest/api/3/<br>
+     * @param apiCallWithParams End API call, formatted as path call + custom parameter value.<br>
+     * @param <T>               Custom type
+     */
+    public <T> T executeGetBasic(Class<T> clazz, String apiVersion, String apiCallWithParams) {
         try {
-            HttpResponse jsonResponse = executeGetAndReturnHttpResponse(apiMethodCallUrl);
+            HttpResponse jsonResponse = executeGetBasicAndReturnHttpResponse(apiCallWithParams, apiVersion);
             if (jsonResponse == null) {
                 return null;
             }
 
-            return jsonUtils.parseResponse(jsonResponse, clazz);
+            return JSONUtils.parseResponse(jsonResponse, clazz);
         } catch (Exception e) {
             String errMsg = "Executing Get Request Error.";
             LOGGER.log(Level.SEVERE, errMsg, e);
@@ -145,12 +155,12 @@ public class JiraClient {
      */
     public <T> List<T> executeGetExpectingList(@NonNull String apiMethodCallUrl, Class<T> resultTypeList) {
         try {
-            HttpResponse jsonResponse = executeGetAndReturnHttpResponse(apiMethodCallUrl);
+            HttpResponse jsonResponse = executeGetBasicAndReturnHttpResponse(apiMethodCallUrl, JIRA_API_V2_URL);
             if (jsonResponse == null) {
                 return null;
             }
 
-            return jsonUtils.parseResponseAsList(jsonResponse, resultTypeList, JSONUtils.getDateTimeFormat(dateTimeFormat));
+            return JSONUtils.parseResponseAsList(jsonResponse, resultTypeList, JSONUtils.getDateTimeFormat(dateTimeFormat));
         } catch (Exception e) {
             String errMsg = "Executing Get Request Error.";
             LOGGER.log(Level.SEVERE, errMsg, e);
@@ -162,16 +172,18 @@ public class JiraClient {
     //<editor-fold desc="POST">
 
     /**
-     * This is preffered and convenient way to use a POST call, for results of type {@link HttpResponse}<br>
+     * This is general way to use a POST calls, for results of type {@link HttpResponse}<br>
      *
      * @param postOperationName  Jira POST API call name.<br>
+     * @param apiVersion         Jira API version.<br>
      * @param contentGenericData POST parameters for the call.<br>
      */
-    public HttpResponse executePostRequest(@NonNull String postOperationName, @NonNull GenericData contentGenericData) {
-        String apiCallUrlPath = JIRA_ENDPOINT_URL + postOperationName;
+    public HttpResponse executePostRequest(@NonNull String postOperationName, @NonNull String apiVersion, @NonNull GenericData contentGenericData) {
+        String apiCallUrlPath = JIRA_HOME_URL + apiVersion + postOperationName;
 
         try {
-            OAuthParameters parameters = jiraOAuthClient.getParameters(JIRA_ACCESS_TOKEN, JIRA_SECRET_KEY, JIRA_CONSUMER_KEY, JIRA_PRIVATE_KEY);
+            OAuthParameters parameters = jiraOAuthClient.getParameters(JIRA_ACCESS_TOKEN, JIRA_SECRET_KEY,
+                                                                       JIRA_CONSUMER_KEY, JIRA_PRIVATE_KEY);
             HttpContent content = new JsonHttpContent(new JacksonFactory(), contentGenericData);
             HttpResponse response = postResponseFromUrl(parameters, new GenericUrl(apiCallUrlPath), content);
 
@@ -188,24 +200,39 @@ public class JiraClient {
     }
 
     /**
-     * This is preferred and convenient way to use a POST call, for results of type {@link T}<br>
+     * This is general way to use a POST call for supplied API version, for results of type {@link T}<br>
      *
+     * @param clazz              Class representation of T type.<br>
      * @param postOperationName  Jira POST API call name.<br>
+     * @param apiVersion         Jira API version.<br>
      * @param contentGenericData POST parameters for the call.<br>
      */
-    public <T> T executePost(Class<T> clazz, @NonNull String postOperationName, @NonNull GenericData contentGenericData) {
+    public <T> T executeBasicPost(Class<T> clazz, @NonNull String postOperationName, @NonNull String apiVersion, @NonNull GenericData contentGenericData) {
         try {
-            HttpResponse jsonResponse = executePostRequest(postOperationName, contentGenericData);
+            HttpResponse jsonResponse = executePostRequest(postOperationName, apiVersion, contentGenericData);
             if (jsonResponse == null) {
                 return null;
             }
 
-            return jsonUtils.parseResponse(jsonResponse, clazz);
+            return JSONUtils.parseResponse(jsonResponse, clazz);
         } catch (Exception e) {
             String errMsg = "Executing Post Request Error.";
             LOGGER.log(Level.WARNING, errMsg, e);
             throw new RuntimeException(errMsg, e);
         }
+    }
+
+    /**
+     * As most calls are API version 2 calls,<br>
+     * this is preferred and convenient way to use those POST calls.<br>
+     * Result is parsed to a dto of type {@link T}<br>
+     *
+     * @param clazz              Class representation of T type.<br>
+     * @param postOperationName  Jira POST API call name.<br>
+     * @param contentGenericData POST parameters for the call.<br>
+     */
+    public <T> T executePost(Class<T> clazz, @NonNull String postOperationName, @NonNull GenericData contentGenericData) {
+        return executeBasicPost(clazz, postOperationName, JIRA_API_V2_URL, contentGenericData);
     }
     //</editor-fold>
 }
