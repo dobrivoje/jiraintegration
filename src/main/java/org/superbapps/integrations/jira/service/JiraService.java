@@ -72,6 +72,27 @@ public class JiraService {
         return dto;
     }
 
+    public List<JiraIssueTypeDto> getAllIssueTypes() {
+        return jiraClient.executeGetExpectingList(apiCallAllIssueTypes, JiraIssueTypeDto.class);
+    }
+
+    public JiraIssueTypeDto getIssueTypeForName(@NonNull String issueTypeName) {
+        return getAllIssueTypes().stream()
+                                 .filter(f -> issueTypeName.equalsIgnoreCase(f.getName()))
+                                 .findFirst()
+                                 .orElseThrow(() -> new RuntimeException(
+                                     "Jira issue type name : " + issueTypeName + ", not found."));
+    }
+
+    public JiraIssueTypeDto getIssueType(Object key) {
+        JiraIssueTypeDto issueType = jiraClient.executeGet(JiraIssueTypeDto.class,
+                                                           MessageFormat.format(apiCallApiIssueType, String.valueOf(key)));
+        if (issueType == null)
+            throw new RuntimeException("Jira issue type with key " + key + ", does not exist.");
+
+        return issueType;
+    }
+
     public AllDashboardsDto getAllDashboards() {
         return jiraClient.executeGet(AllDashboardsDto.class, apiCallAllDashboard);
     }
@@ -86,19 +107,6 @@ public class JiraService {
             throw new RuntimeException("Project with key " + key + ", does not exist.");
 
         return project;
-    }
-
-    public List<JiraIssueTypeDto> getAllIssueTypes() {
-        return jiraClient.executeGetExpectingList(apiCallAllIssueTypes, JiraIssueTypeDto.class);
-    }
-
-    public JiraIssueTypeDto getIssueType(Object key) {
-        JiraIssueTypeDto issueType = jiraClient.executeGet(JiraIssueTypeDto.class, MessageFormat.format(apiCallApiIssueType,
-                                                                                                        String.valueOf(key)));
-        if (issueType == null)
-            throw new RuntimeException("Jira issue type with key " + key + ", does not exist.");
-
-        return issueType;
     }
 
     public List<JiraUserDto> findBulkAssignableUsers(@NonNull String userName, @NonNull String projectKeys, Integer maxResult) {
@@ -117,37 +125,47 @@ public class JiraService {
         return resDto;
     }
 
-    public IssueCreatedResponseDto createIssue(IssueDto issueDto) throws Exception {
-        GenericData issueData = new GenericData();
-
+    public IssueCreatedResponseDto createIssueForProjectIssueTypeId(String projectKey, long issueTypeId,
+                                                                    String summary, String description) throws Exception {
         try {
-            // check for existing Project, and carry on if it exists...
-            ProjectDto projectDto = getProjectByKey(issueDto.getFields().getProject().getId());
+            GenericData fieldsData = new GenericData();
+
+            // validate project key :
+            getProjectByKey(projectKey);
             GenericData projectData = new GenericData();
             // For project "key" must be supplied :
-            projectData.put("key", projectDto.getKey());
-
-            // check for existing issue type, and carry on with no errors..
-            Long dtoIssueId = issueDto.getFields().getIssuetype().getId();
-            // validate supplied issue type :
-            getIssueType(dtoIssueId);
-            GenericData issueTypeData = new GenericData();
-            issueTypeData.put("id", dtoIssueId);
-
-            GenericData fieldsData = new GenericData();
-            fieldsData.set("summary", issueDto.getFields().getSummary());
-            fieldsData.set("description", issueDto.getFields().getDescription());
-
-            fieldsData.set("issuetype", issueTypeData);
+            projectData.put("key", projectKey);
             fieldsData.set("project", projectData);
 
+            fieldsData.set("summary", summary);
+            fieldsData.set("description", description);
+
+            // validate supplied issue type :
+            GenericData issueTypeData = new GenericData();
+            // validate supplied issue type :
+            issueTypeData.put("id", getIssueType(issueTypeId).getId());
+            fieldsData.set("issuetype", issueTypeData);
+
             // in the end, set all fields and execute POST request
+            GenericData issueData = new GenericData();
             issueData.put("fields", fieldsData);
 
             return jiraClient.executePost(IssueCreatedResponseDto.class, apiCallIssueCreate, issueData);
         } catch (Exception e) {
             throw new Exception(e);
         }
+    }
+
+    public IssueCreatedResponseDto createIssueForProjectIssueType(String projectKey, String issueTypeName, String summary, String description) throws Exception {
+        JiraIssueTypeDto typeDto = getIssueTypeForName(issueTypeName);
+        return createIssueForProjectIssueTypeId(projectKey, Long.valueOf(typeDto.getId()), summary, description);
+    }
+
+    public IssueCreatedResponseDto createIssue(IssueDto issueDto) throws Exception {
+        ProjectDto projectDto = getProjectByKey(issueDto.getFields().getProject().getId());
+        Long dtoIssueId = issueDto.getFields().getIssuetype().getId();
+
+        return createIssueForProjectIssueTypeId(projectDto.getKey(), dtoIssueId, issueDto.getFields().getSummary(), issueDto.getFields().getDescription());
     }
     //</editor-fold>
 }

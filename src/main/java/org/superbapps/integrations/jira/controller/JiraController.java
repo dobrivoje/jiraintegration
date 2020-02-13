@@ -17,7 +17,7 @@ public class JiraController {
     @Autowired
     JiraService service;
 
-    @GetMapping(value = {"/getIssueByKey/{key}"})
+    @GetMapping(value = {"/issue/bykey/{key}"})
     public ResponseEntity jiraHome(@PathVariable("key") String key) {
         return ResponseEntity.status(HttpStatus.OK)
                              .contentType(APPLICATION_JSON)
@@ -31,8 +31,8 @@ public class JiraController {
                              .body(service.getAllDashboards());
     }
 
-    @GetMapping(value = "/projects/{key}")
-    public ResponseEntity getProject(@PathVariable(value = "key") String key) {
+    @GetMapping(value = "/projects/{issueName}")
+    public ResponseEntity getProject(@PathVariable(value = "issueName") String key) {
         return ResponseEntity.status(HttpStatus.OK)
                              .contentType(APPLICATION_JSON)
                              .body(service.getProjectByKey(key));
@@ -52,11 +52,18 @@ public class JiraController {
                              .body(service.getAllIssueTypes());
     }
 
-    @GetMapping(value = {"/issuetype/{key}"})
-    public ResponseEntity getIssueType(@PathVariable("key") String key) {
+    @GetMapping(value = {"/issuetype/key/{issueKey}"})
+    public ResponseEntity getIssueType(@PathVariable("issueKey") String key) {
         return ResponseEntity.status(HttpStatus.OK)
                              .contentType(APPLICATION_JSON)
                              .body(service.getIssueType(key));
+    }
+
+    @GetMapping(value = {"/issuetype/name/{issueName}"})
+    public ResponseEntity getIssueTypeForName(@PathVariable("issueName") String name) {
+        return ResponseEntity.status(HttpStatus.OK)
+                             .contentType(APPLICATION_JSON)
+                             .body(service.getIssueTypeForName(name));
     }
 
     @PostMapping(value = "/issues/create", consumes = APPLICATION_JSON_VALUE)

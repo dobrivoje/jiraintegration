@@ -7,21 +7,20 @@ import com.google.gson.reflect.TypeToken;
 import lombok.NonNull;
 import org.codehaus.jettison.json.JSONObject;
 
-import java.io.IOException;
 import java.lang.reflect.Type;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
 public class JSONUtils {
 
-    public static final String DEFAULT_UK_DATETIME_FORMAT = "yyyy-MM-dd HH:mm:ss";
+    public static final String DEFAULT_DATETIME_FORMAT = "dd.MM.yyyy HH:mm:ss";
 
     //<editor-fold desc="supporting methods">
     public static String getDateTimeFormat(String... dateTimeFormat) {
         String pattern;
 
         if (dateTimeFormat == null || dateTimeFormat.length == 0)
-            pattern = DEFAULT_UK_DATETIME_FORMAT;
+            pattern = DEFAULT_DATETIME_FORMAT;
         else if (dateTimeFormat.length != 1)
             throw new RuntimeException("Method allows empty, or just one argument.");
         else
@@ -36,7 +35,7 @@ public class JSONUtils {
     /**
      * Gson with or without defined time format.
      *
-     * @param dateTimeFormat Optional. If not provided, set it up with {@link JSONUtils#DEFAULT_UK_DATETIME_FORMAT} value.
+     * @param dateTimeFormat Optional. If not provided, set it up with {@link JSONUtils#DEFAULT_DATETIME_FORMAT} value.
      */
     public static Gson getGsonWithTimeFormat(String... dateTimeFormat) {
         GsonBuilder gb = new GsonBuilder().serializeNulls().disableHtmlEscaping().setPrettyPrinting();
@@ -63,8 +62,6 @@ public class JSONUtils {
             String res = jsonObj.toString(2);
 
             return getGsonWithTimeFormat().fromJson(res, clazz);
-        } catch (IOException e) {
-            throw new RuntimeException("An issue occurred when system tried to pull Issue from Jira");
         } catch (Exception e) {
             throw new RuntimeException("Parse Response Error.", e);
         }
@@ -90,29 +87,27 @@ public class JSONUtils {
      * @param response        {@link List<T>}
      */
     public static <T> List<T> parseResponseAsList(HttpResponse response, Class<T> returnTypeClass, String... dateTimeFormat) {
-        String errormsg = "Jira List Parse Response Error";
+        String errMsg = "List Parse Response Error";
+        Type returnType = TypeToken.getParameterized(List.class, returnTypeClass).getType();
 
         try {
             Scanner s = new Scanner(response.getContent()).useDelimiter("\\A");
             String respString = s.hasNext() ? s.next() : "";
 
-            Type type = TypeToken.getParameterized(List.class, returnTypeClass).getType();
-            return getGsonWithTimeFormat(dateTimeFormat).fromJson(respString, type);
-        } catch (IOException e) {
-            throw new RuntimeException(errormsg, e);
+            return getGsonWithTimeFormat(dateTimeFormat).fromJson(respString, returnType);
         } catch (Exception e) {
-            throw new RuntimeException(errormsg, e);
+            throw new RuntimeException(errMsg, e);
         }
     }
 
     public static <T> List<T> parseResponseAsList(String response, Class<T> returnTypeClass) {
-        String errormsg = "Jira List Parse Response Error";
+        String errMsg = "List Parse Response Error";
         Type returnType = TypeToken.getParameterized(List.class, returnTypeClass).getType();
 
         try {
             return getGsonWithTimeFormat().fromJson(response, returnType);
         } catch (Exception e) {
-            throw new RuntimeException(errormsg, e);
+            throw new RuntimeException(errMsg, e);
         }
     }
 }
